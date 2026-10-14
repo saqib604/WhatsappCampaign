@@ -1,0 +1,54 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum CampaignStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Template {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  content   String     @db.Text // Contains tokens like {name}, {class}
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Campaign  Campaign[]
+}
+
+model Campaign {
+  id         String         @id @default(uuid())
+  name       String
+  status     CampaignStatus @default(DRAFT)
+  templateId String?
+  template   Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  messages   Message[]
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  campaignId     String
+  campaign       Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  phoneNumber    String // Format validated internally to include country code
+  status         MessageStatus @default(PENDING)
+  variables      Json // Stores fallback/metadata fields from CSV: {"name": "Alex", "class": "10"}
+  sentText       String        @db.Text
+  errorMessage   String?       @db.Text
+  sentAt         DateTime?
+  createdAt      DateTime      @default(now())
+}

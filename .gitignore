@@ -1,0 +1,9 @@
+node_modules/
+uploads/*
+!uploads/.gitkeep
+wa_sessions/
+.env
+*.log
+.DS_Store
+prisma/*.db
+prisma/*.db-journal

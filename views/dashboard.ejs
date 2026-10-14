@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp Campaign Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .badge-draft { @apply bg-gray-200 text-gray-800; }
+    .badge-processing { @apply bg-yellow-200 text-yellow-900; }
+    .badge-completed { @apply bg-green-200 text-green-900; }
+    .badge-failed { @apply bg-red-200 text-red-900; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-800">WhatsApp Campaign Manager</h1>
+        <p class="text-slate-500 mt-1">Bulk messaging with templates &amp; CSV import</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-slate-600">WhatsApp Engine:</span>
+        <% if (engineReady) { %>
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+            ● Ready
+          </span>
+        <% } else { %>
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+            ● Waiting for QR scan
+          </span>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <!-- Template Manager -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h2 class="text-xl font-semibold text-slate-800 mb-4">Template Manager</h2>
+        <p class="text-sm text-slate-500 mb-4">
+          Use placeholders like <code class="bg-slate-100 px-1 rounded">{name}</code>,
+          <code class="bg-slate-100 px-1 rounded">{class}</code> that match your CSV headers.
+        </p>
+        <form action="/templates" method="POST" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Template Name</label>
+            <input type="text" name="name" required
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                   placeholder="e.g. Parent Meeting Notice" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Message Content</label>
+            <textarea name="content" rows="4" required
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      placeholder="Hello {name}, this is a reminder for class {class}."></textarea>
+          </div>
+          <button type="submit"
+                  class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg transition">
+            Save Template
+          </button>
+        </form>
+
+        <% if (templates && templates.length) { %>
+          <div class="mt-6 border-t border-slate-100 pt-4">
+            <h3 class="text-sm font-semibold text-slate-600 mb-2">Existing Templates</h3>
+            <ul class="space-y-2 max-h-40 overflow-y-auto">
+              <% templates.forEach(function(t) { %>
+                <li class="text-sm bg-slate-50 rounded-lg px-3 py-2">
+                  <span class="font-medium text-slate-800"><%= t.name %></span>
+                  <p class="text-slate-500 truncate mt-0.5"><%= t.content %></p>
+                </li>
+              <% }); %>
+            </ul>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Campaign Creator -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h2 class="text-xl font-semibold text-slate-800 mb-4">Launch Campaign</h2>
+        <form action="/campaigns/launch" method="POST" enctype="multipart/form-data" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Campaign Name</label>
+            <input type="text" name="campaignName" required
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                   placeholder="e.g. October Parent Notices" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Template (optional)</label>
+            <select name="templateId"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+              <option value="">— No template (use plain text below) —</option>
+              <% if (templates) { templates.forEach(function(t) { %>
+                <option value="<%= t.id %>"><%= t.name %></option>
+              <% }); } %>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Fallback / Plain Message Text</label>
+            <textarea name="genericMessageText" rows="3"
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      placeholder="Used when no template is selected. Tokens are ignored."></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">CSV File</label>
+            <input type="file" name="csvFile" accept=".csv,text/csv" required
+                   class="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+            <p class="text-xs text-slate-500 mt-2">
+              Required column: <code class="bg-slate-100 px-1 rounded">phone</code> (or phoneNumber / mobile).
+              Other columns become variables (e.g. <code class="bg-slate-100 px-1 rounded">name</code>,
+              <code class="bg-slate-100 px-1 rounded">class</code>). Include country code (e.g. 923001234567).
+            </p>
+          </div>
+          <button type="submit"
+                  class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition">
+            Upload CSV &amp; Start Campaign
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Campaign Progress Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-slate-800">Campaigns</h2>
+        <a href="/" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Refresh</a>
+      </div>
+      <% if (!campaigns || campaigns.length === 0) { %>
+        <div class="px-6 py-12 text-center text-slate-500">
+          No campaigns yet. Create a template and launch your first campaign above.
+        </div>
+      <% } else { %>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-600 uppercase text-xs tracking-wider">
+              <tr>
+                <th class="px-6 py-3 font-semibold">Name</th>
+                <th class="px-6 py-3 font-semibold">Status</th>
+                <th class="px-6 py-3 font-semibold">Template</th>
+                <th class="px-6 py-3 font-semibold text-center">Sent</th>
+                <th class="px-6 py-3 font-semibold text-center">Failed</th>
+                <th class="px-6 py-3 font-semibold text-center">Pending</th>
+                <th class="px-6 py-3 font-semibold">Created</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% campaigns.forEach(function(c) { %>
+                <tr class="hover:bg-slate-50/80">
+                  <td class="px-6 py-4 font-medium text-slate-800"><%= c.name %></td>
+                  <td class="px-6 py-4">
+                    <% const statusClass = {
+                      DRAFT: 'bg-gray-100 text-gray-800',
+                      PROCESSING: 'bg-yellow-100 text-yellow-900',
+                      COMPLETED: 'bg-green-100 text-green-900',
+                      FAILED: 'bg-red-100 text-red-900'
+                    }[c.status] || 'bg-gray-100 text-gray-800'; %>
+                    <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold <%= statusClass %>">
+                      <%= c.status %>
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 text-slate-600">
+                    <%= c.template ? c.template.name : '—' %>
+                  </td>
+                  <td class="px-6 py-4 text-center text-green-700 font-medium"><%= c.metrics.sent %></td>
+                  <td class="px-6 py-4 text-center text-red-600 font-medium"><%= c.metrics.failed %></td>
+                  <td class="px-6 py-4 text-center text-amber-600 font-medium"><%= c.metrics.pending %></td>
+                  <td class="px-6 py-4 text-slate-500">
+                    <%= new Date(c.createdAt).toLocaleString() %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+
+    <p class="text-center text-xs text-slate-400 mt-8">
+      Messages are sent sequentially with a 4–8 second delay to reduce spam risk.
+      Always include country code in phone numbers (digits only preferred).
+    </p>
+  </div>
+</body>
+</html>
