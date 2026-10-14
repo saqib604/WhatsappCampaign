@@ -61,16 +61,26 @@ class WhatsAppWebJSAdapter extends WhatsAppAdapter {
             throw new Error('WhatsApp client interface is not ready/authenticated yet.');
         }
 
-        // Clean phone strings: keep only digits
         let cleanNumber = String(to).replace(/\D/g, '');
-
-        // Append internal WhatsApp JID formatting
         if (!cleanNumber.endsWith('@c.us')) {
             cleanNumber = `${cleanNumber}@c.us`;
         }
 
         const response = await this.client.sendMessage(cleanNumber, text);
-        return { messageId: response.id.id, internalDetails: response };
+
+        // Safely extract message id – structure can vary by whatsapp-web.js version
+        let messageId = null;
+        if (response) {
+            if (response.id && typeof response.id === 'object' && response.id.id) {
+                messageId = response.id.id;
+            } else if (response.id && typeof response.id === 'string') {
+                messageId = response.id;
+            } else if (response._data && response._data.id) {
+                messageId = response._data.id;
+            }
+        }
+
+        return { messageId, internalDetails: response || null };
     }
 }
 

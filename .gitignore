@@ -1,4 +1,5 @@
 node_modules/
+wa_sessions/
 uploads/*
 !uploads/.gitkeep
 wa_sessions/
